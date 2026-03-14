@@ -19,17 +19,14 @@ void robotMove(double x, double y) {
     setSpeed(MOTOR_2, -(y - x));
 }
 
-void robotLiftUp() {
-    setSpeed(MOTOR_3, -0.8);
-    setSpeed(MOTOR_4, 0.8);
+void intake() {
+    setSpeed(MOTOR_3, 0.8); // Set intake motor to 80% speed
 }
 
-void robotLiftDown() {
-    setSpeed(MOTOR_3, 0.8);
-    setSpeed(MOTOR_4, -0.8);
+void intakeReverse() {
+    setSpeed(MOTOR_3, -0.8); // Set intake motor to 80% speed in reverse
 }
 
-void liftStop() {
-    stop(MOTOR_3);
-    stop(MOTOR_4);
+void stopIntake() {
+    setSpeed(MOTOR_3, 0.0);
 }

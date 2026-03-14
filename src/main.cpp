@@ -1,32 +1,36 @@
 #include <Arduino.h>
 #include <components/DriveTrain.h>
 
-double applyDeadzone(double value, double deadzone) {
-  if (fabs(value) < deadzone) return 0.0;
+double applyDeadzone(double value, double deadzone)
+{
+  if (fabs(value) < deadzone)
+    return 0.0;
   return value;
 }
 
-bool top_limit = false; // Top limit switch state
+unsigned long previousMillis = 0;      // Store the last time the reload servo was activated
+const unsigned long reloadDelay = 450; // Delay in milliseconds for the reload servo
+bool reloading = false;                // Flag to indicate if the reload servo is currently active
+
+bool intakeState = false;  // Top limit switch state
 bool bottom_limit = false; // Bottom limit switch state
+bool endGameState = false; // End game state
 
-unsigned long lastReadTime = 0;
-const unsigned long readInterval = 10; // 10 ms
+SERVO outakeServo = {SERVO_5};
+SERVO bottomServoL = {SERVO_4};
+SERVO reloadServo = {SERVO_3};
 
-SERVO outakeServo = {SERVO_0};
-SERVO bottomServo = {SERVO_1};
-
-void setup() {
+void setup()
+{
   Serial.begin(9600);
   initRobot();
-  pinMode(25, INPUT_PULLDOWN); // Top limit switch
-  pinMode(32, INPUT_PULLDOWN); // Lift down button
-
-  setAngle(outakeServo, 90); // Initialize outake servo to 0 degrees
-  setAngle(bottomServo, 90); // Initialize outake servo to 0 degrees
+  setAngle(outakeServo, 85);  // Initialize outake servo to 0 degrees
+  setAngle(bottomServoL, 90); // Initialize bottom left servo to 90 degrees
+  setAngle(reloadServo, 175); // Initialize bottom right servo to 90 degrees
 }
 
-void loop() {
-  unsigned long currentMillis = millis();
+void loop()
+{
   ps2x.read_gamepad();
 
   double ly = (ps2x.Analog(PSS_LY) - 128) / 127.0;
@@ -39,11 +43,13 @@ void loop() {
   {
     rx = constrain(rx, -MIN_SPEED, MIN_SPEED);
     ly = constrain(ly, -MIN_SPEED, MIN_SPEED);
-  } else if (ps2x.Button(PSB_R1))
+  }
+  else if (ps2x.Button(PSB_R1))
   {
     rx = constrain(rx, -MAX_SPEED, MAX_SPEED);
     ly = constrain(ly, -MAX_SPEED, MAX_SPEED);
-  } else
+  }
+  else
   {
     rx = constrain(rx, -NORMAL_SPEED, NORMAL_SPEED);
     ly = constrain(ly, -NORMAL_SPEED, NORMAL_SPEED);
@@ -51,29 +57,50 @@ void loop() {
 
   robotMove(rx, ly);
 
-  if (ps2x.Button(PSB_GREEN)) {
-    setAngle(outakeServo, 18); // Set outake servo to 0 degrees
-  } else if (ps2x.Button(PSB_BLUE)) {
-    setAngle(outakeServo, 90); // Set outake servo to 90 degrees
-  }
-
-  if (ps2x.Button(PSB_PINK)) {
-    setAngle(bottomServo, 180); // Set outake servo to 0 degrees
-  } else if (ps2x.Button(PSB_RED)) {
-    setAngle(bottomServo, 90); // Set outake servo to 90 degrees
-  }
-    
-
-  if (currentMillis - lastReadTime >= readInterval) {
-    lastReadTime = currentMillis;
-    top_limit = digitalRead(25); // Read top limit switch
-    bottom_limit = digitalRead(32); // Read bottom limit switch
-  }
-
-  if (ps2x.Button(PSB_PAD_UP) && !top_limit)
+  if (ps2x.ButtonPressed(PSB_L2))
   {
-    robotLiftUp();
-  } else if (ps2x.Button(PSB_PAD_DOWN) && !bottom_limit) {
-    robotLiftDown();
-  } else liftStop();
+    intakeState = !intakeState; // Toggle intake state
+    if (intakeState)
+    {
+      intake();
+    }
+    else
+    {
+      stopIntake();
+    }
+  }
+
+  if (ps2x.Button(PSB_PAD_DOWN))
+  {
+    intakeReverse();
+  }
+  else if (ps2x.ButtonReleased(PSB_PAD_DOWN))
+  {
+    stopIntake();
+  }
+
+  if (ps2x.Button(PSB_R2))
+  {
+    setAngle(outakeServo, 120); // Move outake servo to 90 degrees
+  }
+  else
+  {
+    setAngle(outakeServo, 85); // Move outake servo back to 90 degrees
+  }
+
+  if (ps2x.ButtonPressed(PSB_BLUE))
+  {
+    if (!reloading)
+    {
+      reloading = true;          // Set reloading flag
+      setAngle(reloadServo, 90); // Move reload servo to 90 degrees
+      previousMillis = millis(); // Store the current time
+    }
+  }
+
+  if (reloading && millis() - previousMillis >= reloadDelay)
+  {
+    reloading = false;          // Reset reloading flag
+    setAngle(reloadServo, 175); // Move reload servo back to 175 degrees
+  }
 }

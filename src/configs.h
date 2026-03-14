@@ -13,31 +13,30 @@ struct SERVO
 
 
 // Define servo pins
-#define SERVO_0 2
-#define SERVO_1 3
-#define SERVO_2 4
-#define SERVO_3 5
-#define SERVO_4 6
-#define SERVO_5 7
+#define SERVO_1 12
+#define SERVO_2 11
+#define SERVO_3 10
+#define SERVO_4 9
+#define SERVO_5 8
 
 // Define motor channels
-#define MOTOR_R1_CH1 8
-#define MOTOR_R1_CH2 9
+#define MOTOR_R1_CH1 2
+#define MOTOR_R1_CH2 3
 
-#define MOTOR_R2_CH1 10
-#define MOTOR_R2_CH2 11
+#define MOTOR_R2_CH1 4
+#define MOTOR_R2_CH2 5
 
-#define MOTOR_R3_CH1 12
-#define MOTOR_R3_CH2 13
+#define MOTOR_R3_CH1 7
+#define MOTOR_R3_CH2 6
 
-#define MOTOR_R4_CH1 14
-#define MOTOR_R4_CH2 15
+#define MOTOR_R4_CH1 1
+#define MOTOR_R4_CH2 0
 
 // Define PS2 controller pins
-#define PS2_DAT 12 // MISO  19
-#define PS2_CMD 13 // MOSI  23
-#define PS2_SEL 15 // SS     5
-#define PS2_CLK 14 // SLK   18
+#define PS2_DAT 7   // DIN
+#define PS2_CMD 2   // DOUT
+#define PS2_SEL 10  // CS
+#define PS2_CLK 6   // CLK
 
 // Define speed 
 #define MAX_SPEED 1.0 // Maximum speed
