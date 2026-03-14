@@ -12,6 +12,8 @@ unsigned long previousMillis = 0;      // Store the last time the reload servo w
 const unsigned long reloadDelay = 450; // Delay in milliseconds for the reload servo
 bool reloading = false;                // Flag to indicate if the reload servo is currently active
 
+bool isHandleOpen = false; // Flag to indicate if the handle is open
+
 bool intakeState = false;  // Top limit switch state
 bool bottom_limit = false; // Bottom limit switch state
 bool endGameState = false; // End game state
@@ -25,7 +27,7 @@ void setup()
   Serial.begin(9600);
   initRobot();
   setAngle(outakeServo, 85);  // Initialize outake servo to 0 degrees
-  setAngle(bottomServoL, 90); // Initialize bottom left servo to 90 degrees
+  setAngle(bottomServoL, 180); // Initialize bottom left servo to 90 degrees
   setAngle(reloadServo, 175); // Initialize bottom right servo to 90 degrees
 }
 
@@ -102,5 +104,18 @@ void loop()
   {
     reloading = false;          // Reset reloading flag
     setAngle(reloadServo, 175); // Move reload servo back to 175 degrees
+  }
+
+  if(ps2x.ButtonPressed(PSB_GREEN))
+  {
+    isHandleOpen = !isHandleOpen; // Toggle handle state
+    if (isHandleOpen)
+    {
+      setAngle(bottomServoL, 90); // Move bottom left servo to 0 degrees
+    }
+    else
+    {
+      setAngle(bottomServoL, 180); // Move bottom left servo back to 90 degrees
+    }
   }
 }
