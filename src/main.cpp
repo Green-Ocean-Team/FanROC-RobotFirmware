@@ -12,11 +12,15 @@ unsigned long previousMillis = 0;      // Store the last time the reload servo w
 const unsigned long reloadDelay = 450; // Delay in milliseconds for the reload servo
 bool reloading = false;                // Flag to indicate if the reload servo is currently active
 
-bool isHandleOpen = false; // Flag to indicate if the handle is open
+unsigned long lastPS2ReadMillis = 0;
+const int PS2_POLL_RATE = 30; // Polling rate in milliseconds for reading PS2 controller input
 
-bool intakeState = false;  // Top limit switch state
-bool bottom_limit = false; // Bottom limit switch state
-bool endGameState = false; // End game state
+bool isHandleOpen = false; // Flag to indicate if the handle is open
+bool intakeState = false;  // Flag to track the state of the intake (on/off)
+
+double currentLy = 0.0;
+double currentRx = 0.0;
+const double RAMP_SPEED = 0.05; // Adjust this value to control how quickly the robot ramps up to the target speed
 
 SERVO outakeServo = {SERVO_5};
 SERVO bottomServoL = {SERVO_4};
@@ -33,8 +37,26 @@ void setup()
 
 void loop()
 {
+
+  if (millis() - lastPS2ReadMillis >= PS2_POLL_RATE)
+  {
+    lastPS2ReadMillis = millis();
+    
+    // Check if the controller is still connected
+    bool isConnected = ps2x.read_gamepad(false, 0); 
+    
+    if (!isConnected) 
+    {
+      // FAIL-SAFE: Emergency stop if controller is disconnected
+      robotMove(0, 0); 
+      stopIntake();
+      return; 
+    }
+  }
   ps2x.read_gamepad();
 
+
+  /* OLD CONTROL CODE WITHOUT SPEED RAMPING:
   double ly = (ps2x.Analog(PSS_LY) - 128) / 127.0;
   double rx = (ps2x.Analog(PSS_RX) - 128) / 127.0;
 
@@ -58,6 +80,51 @@ void loop()
   }
 
   robotMove(rx, ly);
+  */
+
+  double targetLy = (ps2x.Analog(PSS_LY) - 128) / 127.0;
+  double targetRx = (ps2x.Analog(PSS_RX) - 128) / 127.0;
+
+  targetLy = applyDeadzone(targetLy, JOYSTICK_DEADZONE);
+  targetRx = applyDeadzone(targetRx, JOYSTICK_DEADZONE);
+
+  // Áp dụng giới hạn tốc độ theo nút bấm cho targetLy và targetRx...
+  if (ps2x.Button(PSB_L1))
+  {
+    targetRx = constrain(targetRx, -MIN_SPEED, MIN_SPEED);
+    targetLy = constrain(targetLy, -MIN_SPEED, MIN_SPEED);
+  }
+  else if (ps2x.Button(PSB_R1))
+  {
+    targetRx = constrain(targetRx, -MAX_SPEED, MAX_SPEED);
+    targetLy = constrain(targetLy, -MAX_SPEED, MAX_SPEED);
+  }
+  else
+  {
+    targetRx = constrain(targetRx, -NORMAL_SPEED, NORMAL_SPEED);
+    targetLy = constrain(targetLy, -NORMAL_SPEED, NORMAL_SPEED);
+  }
+
+  // SPEED RAMPING:
+  // INCREASE OR DECREASE currentLy TOWARDS targetLy BY RAMP_SPEED, AND DO THE SAME FOR currentRx
+  if (currentLy < targetLy) {
+    currentLy += RAMP_SPEED;
+    if (currentLy > targetLy) currentLy = targetLy;
+  } else if (currentLy > targetLy) {
+    currentLy -= RAMP_SPEED;
+    if (currentLy < targetLy) currentLy = targetLy;
+  }
+
+  if (currentRx < targetRx) {
+    currentRx += RAMP_SPEED;
+    if (currentRx > targetRx) currentRx = targetRx;
+  } else if (currentRx > targetRx) {
+    currentRx -= RAMP_SPEED;
+    if (currentRx < targetRx) currentRx = targetRx;
+  }
+
+  // MOVE THE ROBOT USING currentLy AND currentRx INSTEAD OF targetLy AND targetRx
+  robotMove(currentRx, currentLy);
 
   if (ps2x.ButtonPressed(PSB_L2))
   {
