@@ -37,152 +37,119 @@ void setup()
 
 void loop()
 {
-
-  if (millis() - lastPS2ReadMillis >= PS2_POLL_RATE)
-  {
-    lastPS2ReadMillis = millis();
-    
-    // Check if the controller is still connected
-    bool isConnected = ps2x.read_gamepad(false, 0); 
-    
-    if (!isConnected) 
-    {
-      // FAIL-SAFE: Emergency stop if controller is disconnected
-      robotMove(0, 0); 
-      stopIntake();
-      return; 
-    }
-  }
-  ps2x.read_gamepad();
-
-
-  /* OLD CONTROL CODE WITHOUT SPEED RAMPING:
-  double ly = (ps2x.Analog(PSS_LY) - 128) / 127.0;
-  double rx = (ps2x.Analog(PSS_RX) - 128) / 127.0;
-
-  ly = applyDeadzone(ly, JOYSTICK_DEADZONE);
-  rx = applyDeadzone(rx, JOYSTICK_DEADZONE);
-
-  if (ps2x.Button(PSB_L1))
-  {
-    rx = constrain(rx, -MIN_SPEED, MIN_SPEED);
-    ly = constrain(ly, -MIN_SPEED, MIN_SPEED);
-  }
-  else if (ps2x.Button(PSB_R1))
-  {
-    rx = constrain(rx, -MAX_SPEED, MAX_SPEED);
-    ly = constrain(ly, -MAX_SPEED, MAX_SPEED);
-  }
-  else
-  {
-    rx = constrain(rx, -NORMAL_SPEED, NORMAL_SPEED);
-    ly = constrain(ly, -NORMAL_SPEED, NORMAL_SPEED);
-  }
-
-  robotMove(rx, ly);
-  */
-
-  double targetLy = (ps2x.Analog(PSS_LY) - 128) / 127.0;
-  double targetRx = (ps2x.Analog(PSS_RX) - 128) / 127.0;
-
-  targetLy = applyDeadzone(targetLy, JOYSTICK_DEADZONE);
-  targetRx = applyDeadzone(targetRx, JOYSTICK_DEADZONE);
-
-  // Áp dụng giới hạn tốc độ theo nút bấm cho targetLy và targetRx...
-  if (ps2x.Button(PSB_L1))
-  {
-    targetRx = constrain(targetRx, -MIN_SPEED, MIN_SPEED);
-    targetLy = constrain(targetLy, -MIN_SPEED, MIN_SPEED);
-  }
-  else if (ps2x.Button(PSB_R1))
-  {
-    targetRx = constrain(targetRx, -MAX_SPEED, MAX_SPEED);
-    targetLy = constrain(targetLy, -MAX_SPEED, MAX_SPEED);
-  }
-  else
-  {
-    targetRx = constrain(targetRx, -NORMAL_SPEED, NORMAL_SPEED);
-    targetLy = constrain(targetLy, -NORMAL_SPEED, NORMAL_SPEED);
-  }
-
-  // SPEED RAMPING:
-  // INCREASE OR DECREASE currentLy TOWARDS targetLy BY RAMP_SPEED, AND DO THE SAME FOR currentRx
-  if (currentLy < targetLy) {
-    currentLy += RAMP_SPEED;
-    if (currentLy > targetLy) currentLy = targetLy;
-  } else if (currentLy > targetLy) {
-    currentLy -= RAMP_SPEED;
-    if (currentLy < targetLy) currentLy = targetLy;
-  }
-
-  if (currentRx < targetRx) {
-    currentRx += RAMP_SPEED;
-    if (currentRx > targetRx) currentRx = targetRx;
-  } else if (currentRx > targetRx) {
-    currentRx -= RAMP_SPEED;
-    if (currentRx < targetRx) currentRx = targetRx;
-  }
-
-  // MOVE THE ROBOT USING currentLy AND currentRx INSTEAD OF targetLy AND targetRx
-  robotMove(currentRx, currentLy);
-
-  if (ps2x.ButtonPressed(PSB_L2))
-  {
-    intakeState = !intakeState; // Toggle intake state
-    if (intakeState)
-    {
-      intake();
-    }
-    else
-    {
-      stopIntake();
-    }
-  }
-
-  if (ps2x.Button(PSB_PAD_DOWN))
-  {
-    intakeReverse();
-  }
-  else if (ps2x.ButtonReleased(PSB_PAD_DOWN))
-  {
-    stopIntake();
-  }
-
-  if (ps2x.Button(PSB_R2))
-  {
-    setAngle(outakeServo, 120); // Move outake servo to 90 degrees
-  }
-  else
-  {
-    setAngle(outakeServo, 85); // Move outake servo back to 90 degrees
-  }
-
-  if (ps2x.ButtonPressed(PSB_BLUE))
-  {
-    if (!reloading)
-    {
-      reloading = true;          // Set reloading flag
-      setAngle(reloadServo, 90); // Move reload servo to 90 degrees
-      previousMillis = millis(); // Store the current time
-    }
-  }
-
-  if (reloading && millis() - previousMillis >= reloadDelay)
+  // =================================================================
+  // 1. NON-SYNC RELOAD SERVO CONTROL 
+  // =================================================================
+  if (reloading && (millis() - previousMillis >= reloadDelay))
   {
     reloading = false;          // Reset reloading flag
     setAngle(reloadServo, 175); // Move reload servo back to 175 degrees
   }
 
-  if(ps2x.ButtonPressed(PSB_GREEN))
+  // =================================================================
+  // 2. READ PS2 CONTROLLER INPUT & CONTROL MOTORS (Runs every 30ms)
+  // =================================================================
+  if (millis() - lastPS2ReadMillis >= PS2_POLL_RATE)
   {
-    isHandleOpen = !isHandleOpen; // Toggle handle state
-    if (isHandleOpen)
+    lastPS2ReadMillis = millis();
+    
+    bool isConnected = ps2x.read_gamepad(false, 0); 
+    double targetLy = 0.0;
+    double targetRx = 0.0;
+    
+    if (!isConnected) 
     {
-      setAngle(bottomServoL, 90); // Move bottom left servo to 0 degrees
+      // FAIL-SAFE: Mất kết nối -> Đưa mục tiêu về 0 để tự động phanh mềm
+      targetLy = 0.0;
+      targetRx = 0.0;
+      stopIntake();
+      intakeState = false; 
     }
     else
     {
-      setAngle(bottomServoL, 180); // Move bottom left servo back to 90 degrees
+      // NORMAL OPERATION: Có kết nối thì đọc dữ liệu
+      targetLy = (ps2x.Analog(PSS_LY) - 128) / 127.0;
+      targetRx = (ps2x.Analog(PSS_RX) - 128) / 127.0;
+
+      targetLy = applyDeadzone(targetLy, JOYSTICK_DEADZONE);
+      targetRx = applyDeadzone(targetRx, JOYSTICK_DEADZONE);
+
+      // Cài đặt giới hạn tốc độ
+      if (ps2x.Button(PSB_L1))
+      {
+        targetRx = constrain(targetRx, -MIN_SPEED, MIN_SPEED);
+        targetLy = constrain(targetLy, -MIN_SPEED, MIN_SPEED);
+      }
+      else if (ps2x.Button(PSB_R1))
+      {
+        targetRx = constrain(targetRx, -MAX_SPEED, MAX_SPEED);
+        targetLy = constrain(targetLy, -MAX_SPEED, MAX_SPEED);
+      }
+      else
+      {
+        targetRx = constrain(targetRx, -NORMAL_SPEED, NORMAL_SPEED);
+        targetLy = constrain(targetLy, -NORMAL_SPEED, NORMAL_SPEED);
+      }
+
+      // Xử lý nút bấm Intake
+      if (ps2x.ButtonPressed(PSB_L2))
+      {
+        intakeState = !intakeState;
+        if (intakeState) intake();
+        else stopIntake();
+      }
+
+      if (ps2x.Button(PSB_PAD_DOWN))
+      {
+        intakeReverse();
+      }
+      else if (ps2x.ButtonReleased(PSB_PAD_DOWN))
+      {
+        if(intakeState == false) stopIntake(); // Chỉ dừng nếu L2 không đang bật
+      }
+
+      // Xử lý Outake Servo
+      if (ps2x.Button(PSB_R2)) { setAngle(outakeServo, 120); }
+      else { setAngle(outakeServo, 85); }
+
+      // Xử lý Reload Servo
+      if (ps2x.ButtonPressed(PSB_BLUE))
+      {
+        if (!reloading)
+        {
+          reloading = true;
+          setAngle(reloadServo, 90);
+          previousMillis = millis();
+        }
+      }
+
+      // Xử lý Bottom Servo L
+      if(ps2x.ButtonPressed(PSB_GREEN))
+      {
+        isHandleOpen = !isHandleOpen;
+        if (isHandleOpen) { setAngle(bottomServoL, 90); }
+        else { setAngle(bottomServoL, 180); }
+      }
+    } 
+    // =================================================================
+    // SPEED RAMPING (Tính toán nội suy vận tốc mỗi 30ms)
+    // =================================================================
+    if (currentLy < targetLy) {
+      currentLy += RAMP_SPEED;
+      if (currentLy > targetLy) currentLy = targetLy;
+    } else if (currentLy > targetLy) {
+      currentLy -= RAMP_SPEED;
+      if (currentLy < targetLy) currentLy = targetLy;
     }
+
+    if (currentRx < targetRx) {
+      currentRx += RAMP_SPEED;
+      if (currentRx > targetRx) currentRx = targetRx;
+    } else if (currentRx > targetRx) {
+      currentRx -= RAMP_SPEED;
+      if (currentRx < targetRx) currentRx = targetRx;
+    }
+
+    robotMove(currentRx, currentLy);
   }
 }
