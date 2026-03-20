@@ -51,14 +51,4 @@ platformio run --target upload
 - **L2** – toggle intake on/off
 - **R2** – manual shooter servo activation
 - **Blue button** – toggle automatic shoot/reload cycle
-
-## 🔄 Auto Shooter Behavior
-Pressing the blue button triggers an automatic cycle:
-1. Open reload gate
-2. Run shooter servo for a fixed time
-3. Close reload gate for reload
-4. Repeat until paused
-
----
-
 For questions or improvements, update the code in `src/main.cpp` and follow PlatformIO build/upload steps.
